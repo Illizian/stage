@@ -1,0 +1,874 @@
+:root {
+  --bg: #ffffff;
+  --bg-sub: #f6f8fa;
+  --bg-hover: #eef1f4;
+  --border: #d8dee4;
+  --text: #1f2328;
+  --text-muted: #636c76;
+  --text-faint: #8c959f;
+  --accent: #0969da;
+  --accent-hover: #0860ca;
+  --accent-fg: #ffffff;
+  --danger: #cf222e;
+
+  --add-bg: #e6ffec;
+  --add-gut: #d2fadd;
+  --del-bg: #ffebe9;
+  --del-gut: #ffd8d3;
+  --hunk-bg: #eef4fb;
+  --hunk-fg: #57606a;
+  --pend: #0969da;
+
+  --b-m: #bf8700;
+  --b-a: #1a7f37;
+  --b-d: #cf222e;
+  --b-r: #0969da;
+  --b-u: #bc4c00;
+
+  --row-h: 20px;
+  --shadow: 0 8px 28px rgba(31, 35, 40, 0.16), 0 1px 2px rgba(31, 35, 40, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --bg-sub: #161b22;
+    --bg-hover: #1f242c;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #9198a1;
+    --text-faint: #6e7681;
+    --accent: #2f81f7;
+    --accent-hover: #4493f8;
+    --accent-fg: #ffffff;
+    --danger: #f85149;
+
+    --add-bg: #12261e;
+    --add-gut: #17351f;
+    --del-bg: #2d1618;
+    --del-gut: #45191c;
+    --hunk-bg: #151c28;
+    --hunk-fg: #9198a1;
+    --pend: #2f81f7;
+
+    --b-m: #d29922;
+    --b-a: #3fb950;
+    --b-d: #f85149;
+    --b-r: #58a6ff;
+    --b-u: #db6d28;
+
+    --shadow: 0 8px 28px rgba(1, 4, 9, 0.6), 0 1px 2px rgba(1, 4, 9, 0.5);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter,
+    system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+svg path {
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ topbar */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  /* Clears the overlaid traffic lights. */
+  padding: 0 10px 0 82px;
+  background: var(--bg-sub);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.spacer {
+  flex: 1;
+  align-self: stretch;
+}
+
+.repo-wrap {
+  position: relative;
+}
+
+.repo-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 190px;
+  padding: 5px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  text-align: left;
+  position: relative;
+}
+
+.repo-btn:hover {
+  background: var(--bg-hover);
+}
+
+.rb-label {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.rb-name {
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chev {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  color: var(--text-muted);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 300px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  overflow: hidden;
+}
+
+.menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.menu-item.primary {
+  font-weight: 600;
+}
+
+.menu-sep {
+  padding: 8px 8px 4px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+}
+
+.menu-row .menu-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.mi-name {
+  display: block;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mi-path {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.menu-x {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.menu-x:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Read-only status, so no border or fill — nothing here is clickable. */
+.branch-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-weight: 500;
+  max-width: 260px;
+  cursor: default;
+}
+
+.branch-chip .b-name {
+  color: var(--text);
+}
+
+.branch-chip > span:not(.ab) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bicon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.ab {
+  display: flex;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-muted);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.main {
+  display: grid;
+  grid-template-columns: 330px 1fr;
+  min-height: 0;
+}
+
+.sidebar {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+  background: var(--bg-sub);
+  border-right: 1px solid var(--border);
+}
+
+/* --------------------------------------------------------------- file list */
+
+.filelist {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.rows {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.frow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 28px;
+  padding: 0 12px;
+  cursor: default;
+  user-select: none;
+}
+
+.frow:hover {
+  background: var(--bg-hover);
+}
+
+.frow.sel {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.fpath {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.fpath > span {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.fdir {
+  color: var(--text-muted);
+}
+
+.frow.sel .fdir {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.b-M {
+  color: var(--b-m);
+}
+.b-A {
+  color: var(--b-a);
+}
+.b-D {
+  color: var(--b-d);
+}
+.b-R {
+  color: var(--b-r);
+}
+.b-U {
+  color: var(--b-u);
+}
+
+.frow.sel .badge {
+  color: #fff;
+}
+
+.empty-list {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------- checkbox */
+
+.check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.check svg {
+  width: 11px;
+  height: 11px;
+  color: var(--accent-fg);
+}
+
+.check-all,
+.check-partial {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.frow.sel .check {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: transparent;
+}
+
+.frow.sel .check-all,
+.frow.sel .check-partial {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* --------------------------------------------------------------- commitbox */
+
+.commitbox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.summary,
+.description {
+  width: 100%;
+  padding: 6px 9px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  outline: none;
+}
+
+.description {
+  resize: vertical;
+  min-height: 56px;
+  font-family: inherit;
+}
+
+.summary:focus,
+.description:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.commit {
+  padding: 7px 12px;
+  font-weight: 600;
+  color: var(--accent-fg);
+  background: var(--accent);
+  border: 0;
+  border-radius: 7px;
+}
+
+.commit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.commit:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.commit.wide {
+  padding: 9px 18px;
+}
+
+.lastcommit {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+}
+
+.lc-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+
+/* ------------------------------------------------------------------- diffs */
+
+.diffpane {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  min-height: 0;
+}
+
+.diffhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sub);
+  user-select: none;
+}
+
+.dh-path > span {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.dh-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  direction: rtl;
+  text-align: left;
+}
+
+.diffbody {
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: var(--row-h);
+  tab-size: 4;
+}
+
+.diff-empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  padding: 40px;
+}
+
+.diff-note {
+  position: sticky;
+  left: 0;
+  padding: 7px 12px;
+  background: var(--hunk-bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--hunk-fg);
+  font-family: -apple-system, system-ui, sans-serif;
+}
+
+.dh-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dl {
+  display: flex;
+  align-items: stretch;
+  min-width: max-content;
+  height: var(--row-h);
+  white-space: pre;
+}
+
+/* Hunk-level checkbox column, like the one down the far left of GitHub
+   Desktop's diff. */
+.dl .hgut {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+}
+
+.dl .gut {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  position: sticky;
+  left: 18px;
+  z-index: 1;
+  background: inherit;
+}
+
+.dl .no {
+  flex: none;
+  width: 46px;
+  padding-right: 9px;
+  text-align: right;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.dl .sign {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.dl .tx {
+  padding-right: 28px;
+}
+
+.dl .tx .nonl {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.dl.context {
+  background: var(--bg);
+}
+
+.dl.add {
+  background: var(--add-bg);
+}
+
+.dl.add .hgut,
+.dl.add .gut,
+.dl.add .no {
+  background: var(--add-gut);
+}
+
+.dl.del {
+  background: var(--del-bg);
+}
+
+.dl.del .hgut,
+.dl.del .gut,
+.dl.del .no {
+  background: var(--del-gut);
+}
+
+/* A staged line stays in place and its gutter turns blue. Only the checks
+   and line numbers take the colour — the code keeps its add/delete tint, so
+   syntax highlighting stays readable. */
+.dl.staged .hgut,
+.dl.staged .gut,
+.dl.staged .no {
+  background: var(--accent);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Folded run of unchanged lines. */
+.dl.fold {
+  height: 22px;
+  align-items: center;
+  width: 100%;
+  min-width: 100%;
+  background: var(--hunk-bg);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dl.fold:hover {
+  background: var(--bg-hover);
+}
+
+.fold-label {
+  position: sticky;
+  left: 0;
+  padding-left: 14px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--hunk-fg);
+}
+
+/* Per-line checkbox. Hidden on unstaged lines until hovered, so a diff with
+   nothing staged stays quiet; always shown once ticked. */
+.lbox {
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  opacity: 0;
+}
+
+.lbox svg {
+  width: 11px;
+  height: 11px;
+  color: var(--text-muted);
+}
+
+.lbox.on {
+  opacity: 1;
+}
+
+.lbox.on svg {
+  color: #fff;
+}
+
+/* Unstaged lines show a ghost tick on hover, so the target is discoverable
+   without drawing a box on every changed line. */
+.interactive .dl:hover .lbox {
+  opacity: 0.5;
+}
+
+.interactive .dl:hover .lbox.on {
+  opacity: 1;
+}
+
+.interactive .dl .gut {
+  cursor: pointer;
+}
+
+/* Hunk-level tri-state box. */
+.gbox {
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.gbox svg {
+  width: 11px;
+  height: 11px;
+  color: var(--accent);
+}
+
+.g-all,
+.g-partial {
+  opacity: 1;
+}
+
+.dl.staged .gbox svg {
+  color: #fff;
+}
+
+.interactive .dl:hover .gbox {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- welcome */
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px;
+  text-align: center;
+}
+
+.welcome h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+
+.welcome p {
+  margin: 0;
+  max-width: 460px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.welcome code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 1px 5px;
+  background: var(--bg-sub);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+/* ------------------------------------------------------------------ toast */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(760px, calc(100vw - 40px));
+  padding: 9px 10px 9px 14px;
+  background: var(--bg);
+  border: 1px solid var(--danger);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+
+.toast span {
+  flex: 1;
+  min-width: 0;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.toast button {
+  flex: none;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.toast button:hover {
+  background: var(--bg-hover);
+}

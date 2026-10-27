@@ -1,0 +1,90 @@
+name: Release
+
+# Tagging v* builds a universal macOS app and attaches it to a draft release.
+# Publish the draft by hand once you have checked the artifacts.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # Both halves of the universal binary.
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: bun install --frozen-lockfile
+
+      # Notarisation wants the App Store Connect key as a file on disk. Written
+      # here rather than committed, and skipped entirely when the secret is
+      # absent so the workflow still produces an (unsigned) build.
+      - name: Write App Store Connect API key
+        env:
+          KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s' "$KEY" > "$RUNNER_TEMP/apple-api-key.p8"
+            chmod 600 "$RUNNER_TEMP/apple-api-key.p8"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple-api-key.p8" >> "$GITHUB_ENV"
+          else
+            echo "::warning::APPLE_API_KEY_P8 is not set - this build will not be notarised."
+          fi
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The Tauri CLI imports this into a temporary keychain itself.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: Stage __VERSION__
+          releaseBody: |
+            A small git GUI that drives your own `git`.
+
+            Download `Stage_______VERSION___universal.dmg` below, open it, and
+            drag Stage to Applications.
+          releaseDraft: true
+          args: --target universal-apple-darwin
+          tauriScript: bun run tauri
+
+      # Says plainly in the log whether this build is actually distributable.
+      - name: Check signature and notarisation
+        if: always()
+        run: |
+          APP=src-tauri/target/universal-apple-darwin/release/bundle/macos/Stage.app
+          if [ ! -d "$APP" ]; then
+            echo "No app bundle was produced."
+            exit 0
+          fi
+          echo "--- codesign ---"
+          codesign -dv --verbose=2 "$APP" 2>&1 || true
+          echo "--- gatekeeper ---"
+          if spctl -a -vvv -t install "$APP" 2>&1; then
+            echo "Signed and notarised: this will open with a double-click."
+          else
+            echo "::warning::Not accepted by Gatekeeper. Users will have to allow it in System Settings > Privacy & Security."
+          fi
