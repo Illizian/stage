@@ -35,30 +35,56 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      # Notarisation wants the App Store Connect key as a file on disk. Written
-      # here rather than committed, and skipped entirely when the secret is
-      # absent so the workflow still produces an (unsigned) build.
-      - name: Write App Store Connect API key
+      # An unset secret arrives as an empty string, not as an absent variable,
+      # and an empty APPLE_CERTIFICATE makes the bundler try to import nothing
+      # and fail the whole build. So each variable is exported only when it
+      # actually has a value, which is also what lets an unsigned build work.
+      - name: Prepare signing
         env:
-          KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+          CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          API_KEY: ${{ secrets.APPLE_API_KEY }}
+          API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
-          if [ -n "$KEY" ]; then
-            printf '%s' "$KEY" > "$RUNNER_TEMP/apple-api-key.p8"
+          # put NAME VALUE - exports to later steps, tolerating multi-line values
+          put() {
+            {
+              echo "$1<<__TAURI_EOF__"
+              printf '%s\n' "$2"
+              echo "__TAURI_EOF__"
+            } >> "$GITHUB_ENV"
+          }
+
+          if [ -n "$CERT" ]; then
+            # `base64` wraps its output by default on macOS and the decoder
+            # will not accept line breaks, so normalise to a single line.
+            put APPLE_CERTIFICATE "$(printf '%s' "$CERT" | tr -d '\n\r ')"
+            put APPLE_CERTIFICATE_PASSWORD "$CERT_PASSWORD"
+            [ -n "$IDENTITY" ] && put APPLE_SIGNING_IDENTITY "$IDENTITY"
+            echo "Signing enabled."
+          else
+            echo "::warning::APPLE_CERTIFICATE is not set - this build will be unsigned."
+          fi
+
+          if [ -n "$API_KEY_P8" ]; then
+            printf '%s\n' "$API_KEY_P8" > "$RUNNER_TEMP/apple-api-key.p8"
             chmod 600 "$RUNNER_TEMP/apple-api-key.p8"
-            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple-api-key.p8" >> "$GITHUB_ENV"
+            [ -n "$API_ISSUER" ] && put APPLE_API_ISSUER "$API_ISSUER"
+            [ -n "$API_KEY" ] && put APPLE_API_KEY "$API_KEY"
+            put APPLE_API_KEY_PATH "$RUNNER_TEMP/apple-api-key.p8"
+            echo "Notarisation enabled."
           else
             echo "::warning::APPLE_API_KEY_P8 is not set - this build will not be notarised."
           fi
 
       - uses: tauri-apps/tauri-action@v0
         env:
+          # Signing variables come from the step above, which exports only the
+          # ones that are set. The CLI imports the certificate into a
+          # temporary keychain itself.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The Tauri CLI imports this into a temporary keychain itself.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: Stage __VERSION__
