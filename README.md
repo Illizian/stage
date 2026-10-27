@@ -1,32 +1,77 @@
+<div align="center">
+
+<img src="docs/screenshots/icon.png" width="112" alt="Stage">
+
 # Stage
 
-A small desktop git GUI that drives **your own `git`**. There is no embedded git
-implementation and nothing writes to `.git` directly — every action shells out
-to the same binary your terminal uses.
+**A small desktop git GUI that drives your own `git`.**
+
+[![Release](https://img.shields.io/github/v/release/Illizian/stage?label=release&color=2f81f7)](https://github.com/Illizian/stage/releases)
+[![Downloads](https://img.shields.io/github/downloads/Illizian/stage/total?color=2f81f7)](https://github.com/Illizian/stage/releases)
+[![Licence](https://img.shields.io/github/license/Illizian/stage?color=2f81f7)](LICENSE)
+![Platform](https://img.shields.io/badge/macOS-universal-111?logo=apple&logoColor=white)
+
+[Download](#install) · [Features](#what-it-does) · [How it works](#how-the-view-works) · [Build it](#building-it-yourself)
+
+</div>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
+  <img alt="Stage showing src/parser.ts with 13 of 20 changed lines staged — staged lines ticked and blue, unstaged lines green, all in one view" src="docs/screenshots/hero-light.png">
+</picture>
+
+---
+
+There is no embedded git implementation and nothing writes to `.git` directly —
+every action shells out to the same binary your terminal uses.
 
 The point of that: when you stage a single line here, `git status` in your
 terminal reports the file as both staged and unstaged (`MM`), exactly as if you
 had used `git add -p`.
 
+```console
+$ git status --porcelain
+MM src/parser.ts
+```
+
 ## Install
 
 Grab the `.dmg` from [Releases](https://github.com/Illizian/stage/releases),
 open it, and drag Stage to Applications. Universal build — Apple Silicon and
-Intel.
+Intel, signed and notarised.
 
 ## What it does
 
-- Open a repository (folder picker, with recents) and see its working-tree status.
-- Stage or unstage a whole file.
-- Stage or unstage **individual lines or hunks** — click a changed line, or
-  drag across a range. Staged lines stay where they are and turn blue with a
-  tick; they do not vanish from the view.
-- Commit the staged changes with a summary and description.
-- Syntax highlighting, via [Shiki](https://shiki.style) — TextMate grammars,
-  around 200 languages, and the same themes GitHub uses.
+|  | |
+| --- | --- |
+| **Line-level staging** | Click a changed line, or drag across a range. Staged lines stay where they are and turn blue with a tick — they do not vanish from the view. |
+| **Hunk and whole-file staging** | Toggle a file from the list, or everything at once from the header checkbox. |
+| **One honest diff** | HEAD → worktree in a single pane, with a per-line checkbox saying whether that change is *currently in the index*. No separate staged and unstaged panels to reconcile, and a running `13 of 20 changed lines staged` count in the header. |
+| **Folded context** | Runs of untouched lines collapse into a `41 unchanged lines` bar you can click to expand. |
+| **Syntax highlighting** | Via [Shiki](https://shiki.style) — TextMate grammars, around 200 languages, and the same themes GitHub uses. |
+| **Commit** | Summary and description, `⌘↵` to commit. Shows the last commit and how long ago it landed. |
+| **Repository picker** | Folder picker with recents, branch name, and ahead/behind counts. |
+| **Light and dark** | Follows the system appearance. |
+
+Keyboard: `⌘O` open a repository, `⌘R` refresh, `⌘↵` commit.
 
 That is the whole feature set. No push, pull, fetch, branching, history or
 merge tooling — use the command line for those.
+
+### Staging a line
+
+<img src="docs/screenshots/line-staging.png" alt="Staged lines marked with a blue tick alongside unstaged lines in the same hunk" width="760">
+
+Blue and ticked means that line is in the index right now. Everything else in
+the hunk is still only in your working tree. The file shows up as `MM` in
+`git status`, and `git diff --cached` shows exactly the lines you ticked.
+
+### Committing
+
+The button names the branch it will commit to, and stays disabled until there
+is both a summary and something staged. `⌘↵` from either field does the same.
+
+<img src="docs/screenshots/commit.png" alt="The commit box: summary, description, and a commit button naming the branch" width="328">
 
 ## How the view works
 
@@ -124,10 +169,6 @@ STAGE_OPEN=/path/to/repo STAGE_FILE=some/file cargo test -- --ignored stage_one_
 STAGE_OPEN=/path/to/repo STAGE_FIXTURE=/tmp/fx.json cargo test -- --ignored dump_ui_fixture
 ```
 
-## Licence
-
-MIT — see [LICENSE](LICENSE).
-
 ## Layout
 
 ```
@@ -154,3 +195,7 @@ harmless elsewhere. The window uses the macOS overlay title bar — the top bar
 starts window drags itself via `startDragging()`, and carries 82px of left
 padding to clear the traffic lights, which should be made conditional before
 shipping a Windows or Linux build.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
