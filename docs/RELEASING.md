@@ -44,39 +44,83 @@ security find-identity -v -p codesigning
 base64 -i /path/to/cert.p12 | pbcopy
 ```
 
-### 2. App Store Connect API key
+### 2. Notarisation credentials
 
-Used for notarisation. An API key is preferable to an Apple ID and
-app-specific password: it does not expire when you change your password and
-carries no second factor.
+Pick **either** route. The workflow detects which secrets you set and uses
+whichever is present, preferring the API key when both are.
+
+#### Option A — Apple ID and app-specific password (no permission needed)
+
+1. <https://account.apple.com> → Sign-In and Security → App-Specific Passwords
+   → generate one. It looks like `abcd-efgh-ijkl-mnop`.
+2. Your Team ID is the 10 characters in brackets at the end of the signing
+   identity from step 1, and is also on
+   <https://developer.apple.com/account> under Membership details.
+
+That is all. Nothing to request, nothing to approve.
+
+#### Option B — App Store Connect API key
+
+Tidier long term: it does not expire when you change your Apple ID password,
+and carries no second factor. But it has to be switched on for the team first.
 
 1. <https://appstoreconnect.apple.com> → Users and Access → Integrations →
-   App Store Connect API → **Team Keys**.
-2. Generate a key with the **Developer** role. (Creating keys needs an Account
-   Holder or Admin.)
-3. Download the `.p8`. **Apple lets you download it exactly once.**
-4. Note the **Issuer ID** (a UUID at the top of the page) and the **Key ID**
+   App Store Connect API.
+2. If you see only a **Request Access** button and no key tabs, the API has
+   never been enabled for this team. Click it — as Account Holder it is a
+   terms acknowledgement that grants access immediately, and the **Team Keys**
+   and **Individual Keys** tabs then appear. As an Admin it sends a request to
+   the Account Holder instead.
+3. On **Team Keys**, generate a key with the **Developer** role.
+4. Download the `.p8`. **Apple lets you download it exactly once.**
+5. Note the **Issuer ID** (a UUID at the top of the page) and the **Key ID**
    (10 characters, next to the key).
 
 ### 3. Repository secrets
 
 Settings → Secrets and variables → Actions → New repository secret.
 
+Always needed, from step 1:
+
 | Secret | Value |
 | --- | --- |
-| `APPLE_CERTIFICATE` | base64 of the `.p12` from step 1 |
+| `APPLE_CERTIFICATE` | base64 of the `.p12` |
 | `APPLE_CERTIFICATE_PASSWORD` | the password you set when exporting it |
 | `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Your Name (TEAMID)` |
+
+Then whichever notarisation route you chose:
+
+| Option A | Value |
+| --- | --- |
+| `APPLE_ID` | your Apple ID email |
+| `APPLE_PASSWORD` | the app-specific password |
+| `APPLE_TEAM_ID` | your 10-character Team ID |
+
+| Option B | Value |
+| --- | --- |
 | `APPLE_API_ISSUER` | Issuer ID (UUID) |
 | `APPLE_API_KEY` | Key ID (10 characters) |
-| `APPLE_API_KEY_P8` | the whole contents of the `.p8` file, including the BEGIN/END lines |
+| `APPLE_API_KEY_P8` | the whole `.p8` file, including the BEGIN/END lines |
 
 `gh` can set them without them touching the clipboard or your shell history:
 
 ```sh
-base64 -i cert.p12 | gh secret set APPLE_CERTIFICATE
+# Always. Note the `tr`: base64 wraps its output by default on macOS and the
+# decoder rejects line breaks.
+base64 -i cert.p12 | tr -d '\n' | gh secret set APPLE_CERTIFICATE
+gh secret set APPLE_CERTIFICATE_PASSWORD
+security find-identity -v -p codesigning     # copy the Developer ID line
+gh secret set APPLE_SIGNING_IDENTITY
+
+# Option A
+gh secret set APPLE_ID
+gh secret set APPLE_PASSWORD
+gh secret set APPLE_TEAM_ID
+
+# Option B
+gh secret set APPLE_API_ISSUER
+gh secret set APPLE_API_KEY
 gh secret set APPLE_API_KEY_P8 < AuthKey_XXXXXXXXXX.p8
-gh secret set APPLE_SIGNING_IDENTITY   # prompts for the value
 ```
 
 The Tauri CLI does the rest: it imports the certificate into a temporary
@@ -92,20 +136,23 @@ source=Notarized Developer ID
 Signed and notarised: this will open with a double-click.
 ```
 
-If it says Gatekeeper rejected the app, the release is still usable but
-awkward to install. The most common causes are `APPLE_SIGNING_IDENTITY` not
-matching the certificate's name exactly, or an API key without the Developer
-role.
+The step before it says which notarisation route it used, or warns that it
+had no credentials.
+
+If Gatekeeper rejected the app, the release still works but is awkward to
+install. Common causes, in rough order of likelihood:
+
+- `APPLE_SIGNING_IDENTITY` does not match the certificate name exactly;
+  copy it verbatim from `security find-identity -v -p codesigning`.
+- The certificate is an "Apple Development" one rather than
+  "Developer ID Application". Only the latter works outside the App Store.
+- `APPLE_CERTIFICATE` has line breaks in it — pipe through `tr -d '\n'`.
+- Option A: the app-specific password was pasted with the dashes removed, or
+  `APPLE_TEAM_ID` is missing and the Apple ID belongs to several teams.
+- Option B: the key lacks the Developer role.
 
 You can verify a downloaded build yourself:
 
 ```sh
 spctl -a -vvv -t install /Applications/Stage.app
 ```
-
-## Using an Apple ID instead
-
-If you would rather not create an API key, swap the three `APPLE_API_*`
-secrets for `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password from
-<https://account.apple.com>, not your real one) and `APPLE_TEAM_ID`, and pass
-them through in the same `env:` block in `.github/workflows/release.yml`.

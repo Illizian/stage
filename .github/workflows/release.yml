@@ -47,6 +47,9 @@ jobs:
           API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           API_KEY: ${{ secrets.APPLE_API_KEY }}
           API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_ID_EMAIL: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           # put NAME VALUE - exports to later steps, tolerating multi-line values
           put() {
@@ -68,15 +71,27 @@ jobs:
             echo "::warning::APPLE_CERTIFICATE is not set - this build will be unsigned."
           fi
 
+          # Notarisation takes either an App Store Connect API key or an
+          # Apple ID with an app-specific password. The API key is preferred
+          # when both are present, but it needs API access to be enabled for
+          # the team, which the Apple ID route does not.
           if [ -n "$API_KEY_P8" ]; then
             printf '%s\n' "$API_KEY_P8" > "$RUNNER_TEMP/apple-api-key.p8"
             chmod 600 "$RUNNER_TEMP/apple-api-key.p8"
             [ -n "$API_ISSUER" ] && put APPLE_API_ISSUER "$API_ISSUER"
             [ -n "$API_KEY" ] && put APPLE_API_KEY "$API_KEY"
             put APPLE_API_KEY_PATH "$RUNNER_TEMP/apple-api-key.p8"
-            echo "Notarisation enabled."
+            echo "Notarisation enabled, using an App Store Connect API key."
+          elif [ -n "$APPLE_ID_EMAIL" ] && [ -n "$APPLE_ID_PASSWORD" ]; then
+            put APPLE_ID "$APPLE_ID_EMAIL"
+            put APPLE_PASSWORD "$APPLE_ID_PASSWORD"
+            [ -n "$APPLE_TEAM" ] && put APPLE_TEAM_ID "$APPLE_TEAM"
+            if [ -z "$APPLE_TEAM" ]; then
+              echo "::warning::APPLE_TEAM_ID is not set; notarisation needs it when the Apple ID belongs to more than one team."
+            fi
+            echo "Notarisation enabled, using an Apple ID and app-specific password."
           else
-            echo "::warning::APPLE_API_KEY_P8 is not set - this build will not be notarised."
+            echo "::warning::No notarisation credentials - set either APPLE_API_KEY_P8 or APPLE_ID + APPLE_PASSWORD. The build will be signed but not notarised, and macOS will still warn on first launch."
           fi
 
       - uses: tauri-apps/tauri-action@v0
