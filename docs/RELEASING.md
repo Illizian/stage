@@ -73,8 +73,22 @@ and carries no second factor. But it has to be switched on for the team first.
    the Account Holder instead.
 3. On **Team Keys**, generate a key with the **Developer** role.
 4. Download the `.p8`. **Apple lets you download it exactly once.**
-5. Note the **Issuer ID** (a UUID at the top of the page) and the **Key ID**
-   (10 characters, next to the key).
+5. Note the **Issuer ID** and the **Key ID**. The Issuer ID is a UUID shown
+   above the table of keys, not in a column of it, with a Copy button beside
+   it; there is one per team, shared by every team key. The Key ID is the
+   10 characters in the key's own row.
+
+Check the three values before spending a CI run on them:
+
+```sh
+xcrun notarytool history \
+  --key AuthKey_XXXXXXXXXX.p8 \
+  --key-id <KEY_ID> \
+  --issuer <ISSUER_UUID>
+```
+
+An empty history is a pass — it means Apple accepted the credentials. Errors
+name the part that is wrong.
 
 ### 3. Repository secrets
 
