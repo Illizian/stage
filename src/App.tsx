@@ -12,6 +12,7 @@ import { TopBar } from "./components/TopBar";
 import { FileList } from "./components/FileList";
 import { DiffView } from "./components/DiffView";
 import { CommitBox } from "./components/CommitBox";
+import { useWindowFocus } from "./focus";
 
 const RECENTS_KEY = "stage.recents";
 const LAST_KEY = "stage.last";
@@ -166,6 +167,17 @@ export default function App() {
     [repo, refresh],
   );
 
+  /** Re-read git without changing anything, as ⌘R and the toolbar button do. */
+  const refreshNow = useCallback(() => act(async () => {}), [act]);
+
+  // Git moves under us while the window is in the background — a commit, a
+  // rebase, a branch switch on the command line. Catch up on the way back in.
+  useWindowFocus(
+    useCallback(() => {
+      if (!busy) refreshNow();
+    }, [busy, refreshNow]),
+  );
+
   const openFolder = useCallback(async () => {
     const picked = await openDialog({ directory: true, multiple: false });
     if (typeof picked === "string") await load(picked);
@@ -229,12 +241,12 @@ export default function App() {
         openFolder();
       } else if (e.key === "r" && repo) {
         e.preventDefault();
-        act(async () => {});
+        refreshNow();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openFolder, act, repo]);
+  }, [openFolder, refreshNow, repo]);
 
   return (
     <div className="app">
@@ -251,7 +263,7 @@ export default function App() {
             return next;
           })
         }
-        onRefresh={() => act(async () => {})}
+        onRefresh={refreshNow}
         busy={busy}
       />
 
