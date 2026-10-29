@@ -325,6 +325,9 @@ svg path {
 .sidebar {
   display: grid;
   grid-template-rows: 1fr auto;
+  /* Without an explicit column, the implicit auto track grows to fit the
+     no-wrap last-commit subject and pushes the commit box past 330px. */
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   background: var(--bg-sub);
   border-right: 1px solid var(--border);
