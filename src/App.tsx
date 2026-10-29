@@ -28,12 +28,23 @@ function loadRecents(): string[] {
 
 /** "3 of 11 changed lines staged" — the tabs used to carry this information. */
 function StagedCount({ diff }: { diff: FileDiff }) {
-  const changed = diff.rows.filter((r) => r.kind !== "context");
-  if (changed.length === 0) return null;
-  const staged = changed.filter((r) => r.staged).length;
+  // Counted in a memo because App re-renders on every keystroke in the commit
+  // box, and a lock file brings thousands of rows to walk.
+  const { changed, staged } = useMemo(() => {
+    let changed = 0;
+    let staged = 0;
+    for (const r of diff.rows) {
+      if (r.kind === "context") continue;
+      changed += 1;
+      if (r.staged) staged += 1;
+    }
+    return { changed, staged };
+  }, [diff.rows]);
+
+  if (changed === 0) return null;
   return (
     <span className="dh-count">
-      {staged} of {changed.length} changed line{changed.length === 1 ? "" : "s"} staged
+      {staged} of {changed} changed line{changed === 1 ? "" : "s"} staged
     </span>
   );
 }

@@ -620,6 +620,14 @@ svg path {
   white-space: pre;
 }
 
+/* Stands in for the rows above and below the window actually rendered, and
+   holds the pane open to the width of the longest line in the file. Heights
+   here are computed from --row-h and the fold height below, so a change to
+   either has to be mirrored in DiffView. */
+.diff-pad {
+  flex: none;
+}
+
 /* Hunk-level checkbox column, like the one down the far left of GitHub
    Desktop's diff. */
 .dl .hgut {
