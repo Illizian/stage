@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   api,
@@ -12,6 +12,7 @@ import { TopBar } from "./components/TopBar";
 import { FileList } from "./components/FileList";
 import { DiffView } from "./components/DiffView";
 import { CommitBox } from "./components/CommitBox";
+import { SidebarResizer } from "./components/SidebarResizer";
 import { useWindowFocus } from "./focus";
 
 const RECENTS_KEY = "stage.recents";
@@ -51,6 +52,7 @@ function StagedCount({ diff }: { diff: FileDiff }) {
 
 export default function App() {
   const [repo, setRepo] = useState<RepoInfo | null>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [status, setStatus] = useState<Status | null>(null);
   const [last, setLast] = useState<CommitInfo | null>(null);
@@ -308,7 +310,7 @@ export default function App() {
           </button>
         </div>
       ) : (
-        <div className="main">
+        <div className="main" ref={mainRef}>
           <div className="sidebar">
             <FileList
               files={files}
@@ -332,6 +334,7 @@ export default function App() {
               busy={busy}
               last={last}
             />
+            <SidebarResizer main={mainRef} />
           </div>
 
           <div className="diffpane">
