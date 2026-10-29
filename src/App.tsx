@@ -61,6 +61,8 @@ export default function App() {
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shows "Copied" beside the path for a moment after the header is clicked.
+  const [copied, setCopied] = useState(false);
   // Bumped after every index mutation so the open diff reloads.
   const [tick, setTick] = useState(0);
 
@@ -188,6 +190,22 @@ export default function App() {
       if (!busy) refreshNow();
     }, [busy, refreshNow]),
   );
+
+  const copyPath = useCallback(async (path: string) => {
+    try {
+      await navigator.clipboard.writeText(path);
+      setCopied(true);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
+  // The confirmation is a flash, not a state the header stays in.
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1200);
+    return () => clearTimeout(t);
+  }, [copied]);
 
   const openFolder = useCallback(async () => {
     const picked = await openDialog({ directory: true, multiple: false });
@@ -320,9 +338,20 @@ export default function App() {
             <div className="diffhead">
               {/* The inner span keeps the path LTR; the outer one is RTL only
                   so long paths ellipsize at the front rather than the end. */}
-              <span className="dh-path">
-                <span>{entry ? entry.path : "No file selected"}</span>
-              </span>
+              {entry ? (
+                <button
+                  className="dh-path"
+                  onClick={() => copyPath(entry.path)}
+                  title="Copy this path"
+                >
+                  <span>{entry.path}</span>
+                </button>
+              ) : (
+                <span className="dh-path">
+                  <span>No file selected</span>
+                </span>
+              )}
+              {copied && <span className="dh-copied">Copied</span>}
               {entry && diff && <StagedCount diff={diff} />}
             </div>
 

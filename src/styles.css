@@ -580,6 +580,28 @@ svg path {
   text-align: left;
 }
 
+/* The path is a button so clicking it copies, and looks like the plain
+   label it stands in for until you point at it. */
+button.dh-path {
+  font: inherit;
+  font-weight: 500;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button.dh-path:hover {
+  color: var(--accent);
+}
+
+.dh-copied {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .diffbody {
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
