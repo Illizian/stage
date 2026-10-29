@@ -1,10 +1,17 @@
 name: Release
 
-# Tagging v* builds a universal macOS app and attaches it to a draft release.
-# Publish the draft by hand once you have checked the artifacts.
+# Builds a universal macOS app and attaches it to a draft release. Release
+# Please calls this when its release PR is merged; a v* tag pushed by hand
+# also triggers it. Publish the draft by hand once you have checked the
+# artifacts.
 on:
   push:
     tags: ["v*"]
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       tag:
@@ -19,6 +26,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -101,7 +110,7 @@ jobs:
           # temporary keychain itself.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: Stage __VERSION__
           releaseBody: |
             A small git GUI that drives your own `git`.

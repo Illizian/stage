@@ -1,15 +1,23 @@
 # Releasing
 
-Pushing a `v*` tag builds a universal macOS app and attaches it to a **draft**
-release. Review the draft, then publish it.
+Releases are cut by [Release Please](https://github.com/googleapis/release-please).
+On every push to `main` it keeps a release PR open that bumps the version in
+`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and
+`src-tauri/Cargo.lock`, and adds the commits since the last release to
+`CHANGELOG.md`. The next version comes from the
+[conventional commit](https://www.conventionalcommits.org) prefixes: `fix:`
+bumps the patch, `feat:` the minor, and while the version is below 1.0 a
+breaking change also bumps only the minor.
 
-```sh
-# bump the version in src-tauri/tauri.conf.json and package.json first
-git tag v0.1.0
-git push origin v0.1.0
-```
+Merging that PR tags the release, creates a **draft** GitHub release with the
+changelog as its notes, and builds a universal macOS app into it. Review the
+draft, then publish it.
 
-The workflow also runs from the Actions tab via "Run workflow" if you need to
+To force a particular version, put `Release-As: 1.0.0` in the body of a commit
+on `main`.
+
+Pushing a `v*` tag by hand still builds into a draft release, and the Release
+workflow also runs from the Actions tab via "Run workflow" if you need to
 rebuild a tag.
 
 ## Signing and notarisation
