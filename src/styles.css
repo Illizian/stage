@@ -699,6 +699,7 @@ button.dh-path:hover {
   left: 0;
   z-index: 2;
   background: inherit;
+  user-select: none;
 }
 
 .dl .gut {
@@ -710,6 +711,7 @@ button.dh-path:hover {
   left: 18px;
   z-index: 1;
   background: inherit;
+  user-select: none;
 }
 
 .dl .no {
@@ -823,17 +825,17 @@ button.dh-path:hover {
   color: #fff;
 }
 
-/* Unstaged lines show a ghost tick on hover, so the target is discoverable
-   without drawing a box on every changed line. */
-.interactive .dl:hover .lbox {
+/* Unstaged lines show a ghost tick when the margin is hovered, so the target
+   is discoverable without drawing a box on every changed line. */
+.interactive .dl:is(.add, .del):has(.gut:hover, .no:hover) .lbox {
   opacity: 0.5;
 }
 
-.interactive .dl:hover .lbox.on {
+.interactive .dl:has(.gut:hover, .no:hover) .lbox.on {
   opacity: 1;
 }
 
-.interactive .dl .gut {
+.interactive .dl:is(.add, .del) :is(.gut, .no) {
   cursor: pointer;
 }
 

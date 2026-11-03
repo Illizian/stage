@@ -296,17 +296,20 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
         const groupState =
           !g || g.staged === 0 ? "none" : g.staged === g.total ? "all" : "partial";
 
+        // Only the margin — the checkbox and line numbers — stages; the code
+        // itself is left free to be selected and copied.
+        const startDrag = (e: React.MouseEvent) => {
+          // A toggle is still in flight; its row positions would be stale.
+          if (loading) return;
+          if (!interactive || !r.selectable || e.button !== 0) return;
+          e.preventDefault();
+          setDragNow({ from: r.idx, to: r.idx, target: !r.staged });
+        };
+
         return (
           <div
             className={`dl ${r.kind}${staged ? " staged" : ""}`}
             key={r.idx}
-            onMouseDown={(e) => {
-              // A toggle is still in flight; its row positions would be stale.
-              if (loading) return;
-              if (!interactive || !r.selectable || e.button !== 0) return;
-              e.preventDefault();
-              setDragNow({ from: r.idx, to: r.idx, target: !r.staged });
-            }}
             onMouseEnter={() => {
               const d = dragRef.current;
               if (d) setDragNow({ ...d, to: r.idx });
@@ -330,7 +333,7 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
               )}
             </span>
 
-            <span className="gut">
+            <span className="gut" onMouseDown={startDrag}>
               {interactive && (
                 <span className={`lbox${staged ? " on" : ""}`}>
                   <Tick />
@@ -338,8 +341,8 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
               )}
             </span>
 
-            <span className="no">{r.oldLine ?? ""}</span>
-            <span className="no">{r.newLine ?? ""}</span>
+            <span className="no" onMouseDown={startDrag}>{r.oldLine ?? ""}</span>
+            <span className="no" onMouseDown={startDrag}>{r.newLine ?? ""}</span>
             <span className="sign">{r.kind === "add" ? "+" : "-"}</span>
             <Code row={r} tokens={tokensFor(r)} />
           </div>
