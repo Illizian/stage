@@ -111,6 +111,7 @@ svg path {
   padding: 0 10px 0 82px;
   background: var(--bg-sub);
   border-bottom: 1px solid var(--border);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -385,6 +386,7 @@ body.resizing {
   border-bottom: 1px solid var(--border);
   font-weight: 600;
   color: var(--text-muted);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -400,6 +402,7 @@ body.resizing {
   height: 28px;
   padding: 0 12px;
   cursor: default;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -599,6 +602,7 @@ body.resizing {
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-sub);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -646,6 +650,9 @@ button.dh-path:hover {
   font-size: 12px;
   line-height: var(--row-h);
   tab-size: 4;
+  /* Only the code can be selected and copied; see `.dl .tx`. */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .diff-empty {
@@ -699,7 +706,6 @@ button.dh-path:hover {
   left: 0;
   z-index: 2;
   background: inherit;
-  user-select: none;
 }
 
 .dl .gut {
@@ -711,7 +717,6 @@ button.dh-path:hover {
   left: 18px;
   z-index: 1;
   background: inherit;
-  user-select: none;
 }
 
 .dl .no {
@@ -721,7 +726,6 @@ button.dh-path:hover {
   text-align: right;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
-  user-select: none;
 }
 
 .dl .sign {
@@ -729,16 +733,19 @@ button.dh-path:hover {
   width: 14px;
   text-align: center;
   color: var(--text-muted);
-  user-select: none;
 }
 
 .dl .tx {
   padding-right: 28px;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .dl .tx .nonl {
   color: var(--text-faint);
   font-style: italic;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .dl.context {
@@ -785,7 +792,6 @@ button.dh-path:hover {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   cursor: pointer;
-  user-select: none;
 }
 
 .dl.fold:hover {
