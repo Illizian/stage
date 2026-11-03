@@ -115,7 +115,7 @@ jobs:
           releaseBody: |
             A small git GUI that drives your own `git`.
 
-            Download `Stage_______VERSION___universal.dmg` below, open it, and
+            Download `Stage___VERSION___universal.dmg` below, open it, and
             drag Stage to Applications.
           releaseDraft: true
           args: --target universal-apple-darwin
