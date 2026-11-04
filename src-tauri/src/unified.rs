@@ -477,9 +477,10 @@ pub fn why_flags<'a>(lines: impl Iterator<Item = (Op, &'a str)>) -> Vec<bool> {
                 }
                 let continues = block.is_some_and(|(indent, comment)| {
                     indent_of(text) == indent
-                        && text.trim_start().strip_prefix(comment).is_some_and(|r| {
-                            r.starts_with(' ') || r.trim_end().is_empty()
-                        })
+                        && text
+                            .trim_start()
+                            .strip_prefix(comment)
+                            .is_some_and(|r| r.starts_with(' ') || r.trim_end().is_empty())
                 });
                 if !continues {
                     block = None;

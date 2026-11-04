@@ -40,7 +40,9 @@ fn repo_status(root: String) -> Result<git::Status, String> {
 /// `WHY:` lines are never staged, so git always reports a file holding one as
 /// having unstaged changes. Judge the file by what is left apart from them.
 fn settle_why_files(root: &str, status: &mut git::Status) -> Result<(), String> {
-    let candidates: HashSet<String> = git::paths_mentioning_why(root, false)?.into_iter().collect();
+    let candidates: HashSet<String> = git::paths_mentioning_why(root, false)?
+        .into_iter()
+        .collect();
     for f in &mut status.files {
         if f.work_status != "M" || !candidates.contains(&f.path) {
             continue;
@@ -733,7 +735,12 @@ mod why {
         write(&root, AFTER);
 
         let d = diff_of(&root);
-        let every = d.rows.iter().filter(|r| r.kind != "context").map(|r| r.pos).collect();
+        let every = d
+            .rows
+            .iter()
+            .filter(|r| r.kind != "context")
+            .map(|r| r.pos)
+            .collect();
         set_lines_staged(root.clone(), "f.txt".into(), every, true, d.hash).expect("stage");
 
         assert_eq!(index_contents(&root), WITHOUT_WHY);
@@ -836,7 +843,10 @@ mod why {
         let d = diff_of(&root);
         let h = handles(&d, &["code"], false);
         set_lines_staged(root.clone(), "f.txt".into(), h, true, d.hash).expect("stage");
-        write(&root, "one\n// WHY: the reason\n// carries on\ncode\ntwo\nmore\n");
+        write(
+            &root,
+            "one\n// WHY: the reason\n// carries on\ncode\ntwo\nmore\n",
+        );
 
         assert_eq!(entry(&root, "f.txt").staged_state, "partial");
     }
