@@ -5,18 +5,21 @@ export function Check({
   state,
   onClick,
   title,
+  disabled,
 }: {
   state: StagedState;
   onClick?: (e: React.MouseEvent) => void;
   title?: string;
+  disabled?: boolean;
 }) {
   return (
     <span
-      className={`check check-${state}`}
+      className={`check check-${state}${disabled ? " disabled" : ""}`}
       role="checkbox"
       aria-checked={state === "all" ? "true" : state === "partial" ? "mixed" : "false"}
+      aria-disabled={disabled}
       title={title}
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
     >
       {state === "all" && (
         <svg viewBox="0 0 12 12" aria-hidden="true">

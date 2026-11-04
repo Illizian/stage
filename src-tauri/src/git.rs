@@ -170,6 +170,8 @@ pub struct FileEntry {
     pub unmerged: bool,
     /// "none" | "partial" | "all" — drives the tri-state checkbox.
     pub staged_state: String,
+    /// Nothing is left to stage here but `WHY:` comments.
+    pub why_only: bool,
 }
 
 #[derive(Serialize)]
@@ -270,6 +272,7 @@ pub fn status(root: &str) -> Result<Status, String> {
                     untracked: false,
                     unmerged: false,
                     staged_state: staged_state(x, y).to_string(),
+                    why_only: false,
                 });
             }
             // 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path>\0<origPath>
@@ -290,6 +293,7 @@ pub fn status(root: &str) -> Result<Status, String> {
                     untracked: false,
                     unmerged: false,
                     staged_state: staged_state(x, y).to_string(),
+                    why_only: false,
                 });
             }
             // u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
@@ -306,6 +310,7 @@ pub fn status(root: &str) -> Result<Status, String> {
                     untracked: false,
                     unmerged: true,
                     staged_state: "none".into(),
+                    why_only: false,
                 });
             }
             // ? <path>
@@ -318,6 +323,7 @@ pub fn status(root: &str) -> Result<Status, String> {
                     untracked: true,
                     unmerged: false,
                     staged_state: "none".into(),
+                    why_only: false,
                 });
             }
             _ => {}
@@ -398,6 +404,26 @@ pub fn diff_untracked(root: &str, path: &str) -> Result<String, String> {
         return Err(o.fail("diff --no-index"));
     }
     Ok(o.text())
+}
+
+/// Files whose diff touches a line mentioning `WHY:`, so the common refresh
+/// spends one git process here rather than a full diff per changed file.
+/// Index → worktree, or HEAD → index when `cached`.
+pub fn paths_mentioning_why(root: &str, cached: bool) -> Result<Vec<String>, String> {
+    let mut args = vec!["diff", "--no-ext-diff", "--no-renames", "--name-only", "-z"];
+    if cached {
+        args.push("--cached");
+    }
+    args.push("-GWHY:");
+    let o = run(root, &args)?;
+    if o.code != 0 {
+        return Err(o.fail("diff -G"));
+    }
+    Ok(o.out
+        .split(|b| *b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|s| String::from_utf8_lossy(s).into_owned())
+        .collect())
 }
 
 // ------------------------------------------------------------ whole-file ops

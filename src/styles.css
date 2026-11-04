@@ -18,6 +18,9 @@
   --hunk-bg: #eef4fb;
   --hunk-fg: #57606a;
   --pend: #0969da;
+  --why-bg: #fff8e1;
+  --why-gut: #fdefc3;
+  --why-fg: #7d5a00;
 
   --b-m: #bf8700;
   --b-a: #1a7f37;
@@ -50,6 +53,9 @@
     --hunk-bg: #151c28;
     --hunk-fg: #9198a1;
     --pend: #2f81f7;
+    --why-bg: #272010;
+    --why-gut: #362b12;
+    --why-fg: #d9b45f;
 
     --b-m: #d29922;
     --b-a: #3fb950;
@@ -415,6 +421,16 @@ body.resizing {
   color: var(--accent-fg);
 }
 
+/* Nothing here but WHY comments: listed, but not asking for anything. */
+.frow.why-only:not(.sel) .fname,
+.frow.why-only:not(.sel) .fdir {
+  color: var(--text-faint);
+}
+
+.frow.why-only .badge {
+  opacity: 0.5;
+}
+
 .fpath {
   flex: 1;
   min-width: 0;
@@ -501,6 +517,11 @@ body.resizing {
 .check-partial {
   background: var(--accent);
   border-color: var(--accent);
+}
+
+.check.disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .frow.sel .check {
@@ -770,6 +791,107 @@ button.dh-path:hover {
 .dl.del .gut,
 .dl.del .no {
   background: var(--del-gut);
+}
+
+/* A WHY comment reads as a note to the reviewer rather than as code. Declared
+   before .staged, so one that reached the index still shows the blue gutter. */
+.dl.why {
+  background: var(--why-bg);
+}
+
+.dl.why .hgut,
+.dl.why .gut,
+.dl.why .no {
+  background: var(--why-gut);
+}
+
+.dl.why .tx {
+  color: var(--why-fg);
+  font-style: italic;
+}
+
+/* An unstaged WHY comment, drawn as one note. Its height is set from DiffView,
+   which has to mirror the padding and line heights here. Both number columns
+   hold the range, with room for a long one. */
+.dl .no.why-range {
+  width: 92px;
+  padding-top: 4px;
+  color: var(--why-fg);
+}
+
+.why-body {
+  flex: none;
+  padding: 5px 28px 5px 0;
+  color: var(--why-fg);
+}
+
+.why-head {
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 0.04em;
+}
+
+.why-text {
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 20px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.why-text > div {
+  min-height: 20px;
+}
+
+/* A dangling note: nothing else changes in its hunk, so it folds to one row. */
+.why-chev {
+  display: grid;
+  place-items: start center;
+  padding-top: 9px;
+  cursor: pointer;
+}
+
+.why-closed .why-chev {
+  place-items: center;
+  padding-top: 0;
+}
+
+.dl .sign.why-chev {
+  color: var(--why-fg);
+}
+
+.why-chev svg {
+  width: 10px;
+  height: 10px;
+  stroke: currentColor;
+}
+
+.why-toggle {
+  cursor: pointer;
+}
+
+.dl.why-closed {
+  cursor: pointer;
+}
+
+.dl.why-closed .no.why-range {
+  padding-top: 0;
+}
+
+.why-closed .why-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 0;
+}
+
+.why-first {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 12px;
 }
 
 /* A staged line stays in place and its gutter turns blue. Only the checks

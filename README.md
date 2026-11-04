@@ -47,6 +47,7 @@ Intel, signed and notarised.
 | **Line-level staging** | Click a changed line, or drag across a range. Staged lines stay where they are and turn blue with a tick — they do not vanish from the view. |
 | **Hunk and whole-file staging** | Toggle a file from the list, or everything at once from the header checkbox. |
 | **One honest diff** | HEAD → worktree in a single pane, with a per-line checkbox saying whether that change is *currently in the index*. No separate staged and unstaged panels to reconcile, and a running `13 of 20 changed lines staged` count in the header. |
+| **WHY comments** | Added `// WHY:` comments are shown as notes for the reviewer and are never staged, so they stay out of commits and in your working tree. |
 | **Folded context** | Runs of untouched lines collapse into a `41 unchanged lines` bar you can click to expand. |
 | **Syntax highlighting** | Via [Shiki](https://shiki.style) — TextMate grammars, around 200 languages, and the same themes GitHub uses. |
 | **Commit** | Summary and description, `⌘↵` to commit. Shows the last commit and how long ago it landed. |
@@ -65,6 +66,28 @@ merge tooling — use the command line for those.
 Blue and ticked means that line is in the index right now. Everything else in
 the hunk is still only in your working tree. The file shows up as `MM` in
 `git status`, and `git diff --cached` shows exactly the lines you ticked.
+
+### WHY comments
+
+A whole-line comment starting `// WHY:`, `# WHY:` or `-- WHY:` is a note from
+whoever wrote the change to whoever reviews it, not part of the change. So is
+the comment running on directly below it, at the same indent and in the same
+style. The diff draws those lines as one note, its prose rewrapped to the pane
+under a WHY headline, with the file's line range in the margin. A note has no
+checkbox, and staging a file or everything runs `git add` and then takes its
+lines straight back out of the index.
+
+A note with no other change in its hunk, staged or not, is dangling: its code
+has been committed or discarded. It folds to one row showing its first words,
+and the chevron opens it again.
+
+Nothing ever removes them from the file. They stay as unstaged changes, visible
+here and in `git status`, until you clear them yourself. A file with nothing else
+left is muted in the list, and that file alone is safe to `git restore`: on a
+file that also has real changes, the same command discards those too.
+
+Only lines being *added* count. A WHY comment that reached the index some other
+way shows as its literal lines, tinted, and can still be unticked, and deleting one that was committed stages normally.
 
 ### Committing
 

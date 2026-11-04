@@ -36,6 +36,8 @@ function StagedCount({ diff }: { diff: FileDiff }) {
     let staged = 0;
     for (const r of diff.rows) {
       if (r.kind === "context") continue;
+      // These can't be staged, so counting them would keep it short of "all".
+      if (r.why && !r.staged) continue;
       changed += 1;
       if (r.staged) staged += 1;
     }

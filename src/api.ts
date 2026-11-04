@@ -12,6 +12,8 @@ export interface FileEntry {
   untracked: boolean;
   unmerged: boolean;
   stagedState: StagedState;
+  /** Nothing is left to stage here but `WHY:` comments. */
+  whyOnly: boolean;
 }
 
 export interface Status {
@@ -45,6 +47,8 @@ export interface DiffRow {
   /** Identifies the folded run, so one gap can be expanded at a time. */
   gap: number;
   nonl: boolean;
+  /** Part of an added `WHY:` comment. Never staged by this app. */
+  why: boolean;
 }
 
 export interface FileDiff {

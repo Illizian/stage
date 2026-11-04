@@ -164,6 +164,8 @@ pub struct Row {
     /// Identifies the folded run, so the UI can expand one gap at a time.
     pub gap: usize,
     pub nonl: bool,
+    /// Part of an added `WHY:` comment. Unstaged ones are not selectable.
+    pub why: bool,
 }
 
 /// Build the unified view from the two alignments.
@@ -257,6 +259,7 @@ pub fn merge(a: &Align, b: &Align) -> Result<Vec<Row>, String> {
             visible: true,
             gap: 0,
             nonl,
+            why: false,
         })
     };
 
@@ -335,8 +338,28 @@ pub fn merge(a: &Align, b: &Align) -> Result<Vec<Row>, String> {
         }
     }
 
+    mark_why(&mut rows);
     number_and_fold(&mut rows);
     Ok(rows)
+}
+
+/// Flag `WHY:` rows and stop the unstaged ones being picked. A staged one stays
+/// selectable, so one that got into the index some other way can be taken out.
+fn mark_why(rows: &mut [Row]) {
+    let flags = why_flags(rows.iter().map(|r| {
+        let op = match r.kind {
+            "add" => Op::Add,
+            "del" => Op::Del,
+            _ => Op::Ctx,
+        };
+        (op, r.text.as_str())
+    }));
+    for (r, why) in rows.iter_mut().zip(flags) {
+        r.why = why;
+        if why && !r.staged {
+            r.selectable = false;
+        }
+    }
 }
 
 /// Assign row ids, group changed runs together, and mark distant unchanged
@@ -414,6 +437,87 @@ pub fn context_only_from_index(other: &Align, other_is_b: bool) -> Align {
         .map(|l| (l.text.clone(), l.nonl))
         .collect();
     Align::all_context(texts)
+}
+
+// ------------------------------------------------------------ WHY comments
+
+/// Line comments a `WHY:` block can be written in.
+const WHY_COMMENTS: [&str; 3] = ["//", "#", "--"];
+
+fn why_marker(text: &str) -> Option<&'static str> {
+    let t = text.trim_start();
+    WHY_COMMENTS
+        .into_iter()
+        .find(|c| t.strip_prefix(c).is_some_and(|r| r.starts_with(" WHY:")))
+}
+
+fn indent_of(text: &str) -> &str {
+    &text[..text.len() - text.trim_start().len()]
+}
+
+/// Which lines belong to an added `WHY:` comment.
+///
+/// Only the first line of a block carries the marker, so it runs on through the
+/// added comment lines below it at the same indent, in the same comment style.
+/// Requiring a space after the comment leader keeps `#[derive]` and `//go:`
+/// out. Deleted lines are not in the worktree, so they do not end a block.
+pub fn why_flags<'a>(lines: impl Iterator<Item = (Op, &'a str)>) -> Vec<bool> {
+    let mut block: Option<(&'a str, &'static str)> = None;
+    lines
+        .map(|(op, text)| match op {
+            Op::Del => false,
+            Op::Ctx => {
+                block = None;
+                false
+            }
+            Op::Add => {
+                if let Some(comment) = why_marker(text) {
+                    block = Some((indent_of(text), comment));
+                    return true;
+                }
+                let continues = block.is_some_and(|(indent, comment)| {
+                    indent_of(text) == indent
+                        && text.trim_start().strip_prefix(comment).is_some_and(|r| {
+                            r.starts_with(' ') || r.trim_end().is_empty()
+                        })
+                });
+                if !continues {
+                    block = None;
+                }
+                continues
+            }
+        })
+        .collect()
+}
+
+impl Align {
+    fn why_lines(&self) -> Vec<bool> {
+        why_flags(self.lines.iter().map(|l| (l.op, l.text.as_str())))
+    }
+
+    /// Positions of the `WHY:` lines, as `build_patch` wants them.
+    pub fn why_positions(&self) -> HashSet<usize> {
+        self.why_lines()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(pos, why)| why.then_some(pos))
+            .collect()
+    }
+
+    /// Whether this diff changes something, and all of it is `WHY:` lines.
+    pub fn only_why(&self) -> bool {
+        let mut any = false;
+        for (l, why) in self.lines.iter().zip(self.why_lines()) {
+            if l.op == Op::Ctx {
+                continue;
+            }
+            if !why {
+                return false;
+            }
+            any = true;
+        }
+        any
+    }
 }
 
 // ---------------------------------------------------------------- patching
@@ -607,6 +711,75 @@ mod tests {
         assert!(p.contains("@@ -1,3 +1,4 @@\n"), "{p}");
         assert!(p.contains("+X\n"));
         assert!(p.contains(" Y\n"));
+    }
+
+    fn why_of(spec: &[(&str, &str)]) -> Vec<bool> {
+        align(spec).why_lines()
+    }
+
+    #[test]
+    fn a_why_block_runs_through_the_comment_lines_below_it() {
+        assert_eq!(
+            why_of(&[
+                ("+", "    // WHY: the reason"),
+                ("+", "    // carries on here"),
+                ("+", "    //"),
+                ("+", "    // and here"),
+                ("+", "    code();"),
+                ("+", "    // an ordinary comment"),
+            ]),
+            vec![true, true, true, true, false, false]
+        );
+    }
+
+    #[test]
+    fn a_why_block_ends_at_a_change_of_indent_or_comment_style() {
+        assert_eq!(
+            why_of(&[
+                ("+", "// WHY: the reason"),
+                ("+", "    // deeper"),
+                ("+", "# WHY: another"),
+                ("+", "#[derive(Debug)]"),
+                ("+", "-- WHY: and another"),
+                ("+", "// different style"),
+            ]),
+            vec![true, false, true, false, true, false]
+        );
+    }
+
+    #[test]
+    fn only_whole_added_comment_lines_count_as_why() {
+        assert_eq!(
+            why_of(&[
+                (" ", "// WHY: already committed"),
+                ("+", "// comment under committed one"),
+                ("-", "// WHY: being deleted"),
+                ("+", "x = 1; // WHY: trailing"),
+                ("+", "// WHYNOT: other marker"),
+                ("+", "//WHY: no space"),
+            ]),
+            vec![false; 6]
+        );
+    }
+
+    #[test]
+    fn a_deleted_line_does_not_end_a_why_block() {
+        assert_eq!(
+            why_of(&[
+                ("+", "// WHY: the reason"),
+                ("-", "old"),
+                ("+", "// carries on"),
+            ]),
+            vec![true, false, true]
+        );
+    }
+
+    #[test]
+    fn only_why_needs_a_change_and_nothing_else_changed() {
+        assert!(align(&[(" ", "a"), ("+", "// WHY: b")]).only_why());
+        assert!(!align(&[(" ", "a")]).only_why());
+        assert!(!align(&[("+", "// WHY: b"), ("+", "c")]).only_why());
+        assert!(!align(&[("+", "// WHY: b"), ("-", "c")]).only_why());
     }
 
     #[test]

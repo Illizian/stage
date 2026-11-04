@@ -14,9 +14,11 @@ export function FileList({
   onToggle: (f: FileEntry) => void;
   onToggleAll: (stageEverything: boolean) => void;
 }) {
-  const stagedCount = files.filter((f) => f.stagedState !== "none").length;
+  // A file of nothing but WHY comments can't be staged, so it has no say here.
+  const stageable = files.filter((f) => !f.whyOnly);
+  const stagedCount = stageable.filter((f) => f.stagedState !== "none").length;
   const allState =
-    stagedCount === 0 ? "none" : stagedCount === files.length ? "all" : "partial";
+    stagedCount === 0 ? "none" : stagedCount === stageable.length ? "all" : "partial";
 
   return (
     <div className="filelist">
@@ -40,15 +42,18 @@ export function FileList({
               key={f.path}
               role="option"
               aria-selected={f.path === selected}
-              className={`frow${f.path === selected ? " sel" : ""}`}
+              className={`frow${f.path === selected ? " sel" : ""}${f.whyOnly ? " why-only" : ""}`}
               onClick={() => onSelect(f.path)}
             >
               <Check
                 state={f.stagedState}
+                disabled={f.whyOnly}
                 title={
-                  f.stagedState === "all"
-                    ? "Unstage this file"
-                    : "Stage this whole file"
+                  f.whyOnly
+                    ? "Only WHY comments are left, and they are never staged"
+                    : f.stagedState === "all"
+                      ? "Unstage this file"
+                      : "Stage this whole file"
                 }
                 onClick={(e) => {
                   e.stopPropagation();

@@ -32,7 +32,30 @@ fn open_repo(path: String) -> Result<git::RepoInfo, String> {
 
 #[tauri::command]
 fn repo_status(root: String) -> Result<git::Status, String> {
-    git::status(&root)
+    let mut status = git::status(&root)?;
+    settle_why_files(&root, &mut status)?;
+    Ok(status)
+}
+
+/// `WHY:` lines are never staged, so git always reports a file holding one as
+/// having unstaged changes. Judge the file by what is left apart from them.
+fn settle_why_files(root: &str, status: &mut git::Status) -> Result<(), String> {
+    let candidates: HashSet<String> = git::paths_mentioning_why(root, false)?.into_iter().collect();
+    for f in &mut status.files {
+        if f.work_status != "M" || !candidates.contains(&f.path) {
+            continue;
+        }
+        let raw = git::diff_index_to_worktree(root, &f.path)?;
+        if !unified::parse_align(&raw).only_why() {
+            continue;
+        }
+        if f.index_status == "." {
+            f.why_only = true;
+        } else {
+            f.staged_state = "all".into();
+        }
+    }
+    Ok(())
 }
 
 /// The whole-file cases, rendered read-only with an explanation.
@@ -134,7 +157,8 @@ fn file_diff(
 
 #[tauri::command]
 fn stage_file(root: String, path: String) -> Result<(), String> {
-    git::stage_file(&root, &path)
+    git::stage_file(&root, &path)?;
+    unstage_why(&root, &path)
 }
 
 #[tauri::command]
@@ -144,7 +168,44 @@ fn unstage_file(root: String, path: String, orig_path: Option<String>) -> Result
 
 #[tauri::command]
 fn stage_all(root: String) -> Result<(), String> {
-    git::stage_all(&root)
+    git::stage_all(&root)?;
+    for path in git::paths_mentioning_why(&root, true)? {
+        unstage_why(&root, &path)?;
+    }
+    Ok(())
+}
+
+/// Take `WHY:` lines back out of the index after a whole-file `git add`, which
+/// has no way to leave them behind. The worktree is not touched.
+fn unstage_why(root: &str, path: &str) -> Result<(), String> {
+    let a = unified::parse_align(&git::diff_head_to_index(root, path)?);
+    if a.binary {
+        return Ok(());
+    }
+    match unified::build_patch(&a, &a.why_positions(), true, path) {
+        Some(patch) => apply_to_index(root, &patch, true),
+        None => Ok(()),
+    }
+}
+
+fn apply_to_index(root: &str, patch: &str, reverse: bool) -> Result<(), String> {
+    let mut args = vec!["apply", "--cached", "--recount", "--whitespace=nowarn"];
+    if reverse {
+        args.push("--reverse");
+    }
+    args.push("-");
+
+    let out = git::run_stdin(root, &args, patch)?;
+    if out.code != 0 {
+        eprintln!("--- patch that failed to apply ---\n{patch}---");
+        let msg = if out.err.is_empty() {
+            format!("git apply exited with code {}", out.code)
+        } else {
+            out.err
+        };
+        return Err(msg);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -181,27 +242,15 @@ fn set_lines_staged(
 
     // Staging reads from index → worktree; unstaging reverses HEAD → index.
     let align = if staged { &b } else { &a };
-    let selected: HashSet<usize> = positions.into_iter().collect();
+    let mut selected: HashSet<usize> = positions.into_iter().collect();
+    // The UI never sends these, but this is the one place they can be refused.
+    if staged {
+        selected = &selected - &b.why_positions();
+    }
     let patch = unified::build_patch(align, &selected, !staged, &path)
         .ok_or_else(|| "No lines were selected.".to_string())?;
 
-    let mut args = vec!["apply", "--cached", "--recount", "--whitespace=nowarn"];
-    if !staged {
-        args.push("--reverse");
-    }
-    args.push("-");
-
-    let out = git::run_stdin(&root, &args, &patch)?;
-    if out.code != 0 {
-        eprintln!("--- patch that failed to apply ---\n{patch}---");
-        let msg = if out.err.is_empty() {
-            format!("git apply exited with code {}", out.code)
-        } else {
-            out.err
-        };
-        return Err(msg);
-    }
-    Ok(())
+    apply_to_index(&root, &patch, !staged)
 }
 
 #[tauri::command]
@@ -627,6 +676,228 @@ mod e2e {
     }
 }
 
+/// The rules for `WHY:` comments, against real throwaway repositories. The
+/// whole-file commands matter most: they are the ones that run plain `git add`.
+#[cfg(test)]
+mod why {
+    use super::e2e_support::*;
+    use super::*;
+    use std::path::PathBuf;
+
+    const BEFORE: &str = "one\ntwo\n";
+    const AFTER: &str = "one\n// WHY: the reason\n// carries on\ncode\ntwo\n";
+    const WITHOUT_WHY: &str = "one\ncode\ntwo\n";
+    const ONLY_WHY: &str = "one\n// WHY: the reason\ntwo\n";
+
+    fn entry(root: &str, path: &str) -> git::FileEntry {
+        repo_status(root.to_string())
+            .expect("status")
+            .files
+            .into_iter()
+            .find(|f| f.path == path)
+            .expect("file")
+    }
+
+    fn write_to(root: &str, path: &str, contents: &str) {
+        std::fs::write(PathBuf::from(root).join(path), contents).expect("write");
+    }
+
+    fn worktree(root: &str) -> String {
+        std::fs::read_to_string(PathBuf::from(root).join("f.txt")).expect("read")
+    }
+
+    #[test]
+    fn unstaged_why_rows_are_flagged_and_cannot_be_picked() {
+        let root = repo(BEFORE);
+        write(&root, AFTER);
+
+        let got: Vec<_> = diff_of(&root)
+            .rows
+            .iter()
+            .filter(|r| r.kind != "context")
+            .map(|r| (r.text.clone(), r.why, r.selectable))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("// WHY: the reason".to_string(), true, false),
+                ("// carries on".to_string(), true, false),
+                ("code".to_string(), false, true),
+            ]
+        );
+    }
+
+    #[test]
+    fn staging_lines_leaves_why_out_even_when_asked_for() {
+        let root = repo(BEFORE);
+        write(&root, AFTER);
+
+        let d = diff_of(&root);
+        let every = d.rows.iter().filter(|r| r.kind != "context").map(|r| r.pos).collect();
+        set_lines_staged(root.clone(), "f.txt".into(), every, true, d.hash).expect("stage");
+
+        assert_eq!(index_contents(&root), WITHOUT_WHY);
+        assert_eq!(worktree(&root), AFTER);
+    }
+
+    #[test]
+    fn staging_only_why_lines_selects_nothing() {
+        let root = repo(BEFORE);
+        write(&root, ONLY_WHY);
+
+        let d = diff_of(&root);
+        let h = handles(&d, &["// WHY: the reason"], false);
+        let err = set_lines_staged(root.clone(), "f.txt".into(), h, true, d.hash)
+            .expect_err("nothing to stage");
+        assert!(err.contains("No lines"), "{err}");
+        assert_eq!(index_contents(&root), BEFORE);
+    }
+
+    #[test]
+    fn staging_a_file_leaves_why_in_the_worktree_only() {
+        let root = repo(BEFORE);
+        write(&root, AFTER);
+
+        stage_file(root.clone(), "f.txt".into()).expect("stage");
+
+        assert_eq!(index_contents(&root), WITHOUT_WHY);
+        assert_eq!(worktree(&root), AFTER);
+        assert_eq!(porcelain(&root), "MM f.txt");
+    }
+
+    #[test]
+    fn staging_everything_leaves_why_out_of_every_file() {
+        let root = repo(BEFORE);
+        write(&root, AFTER);
+        write_to(&root, "new.txt", "// WHY: new\ncode\n");
+        write_to(&root, "plain.txt", "plain\n");
+
+        stage_all(root.clone()).expect("stage");
+
+        assert_eq!(index_contents(&root), WITHOUT_WHY);
+        assert_eq!(sh(&root, &["show", ":new.txt"]), "code\n");
+        assert_eq!(sh(&root, &["show", ":plain.txt"]), "plain\n");
+    }
+
+    #[test]
+    fn a_new_file_is_staged_without_its_why_lines() {
+        let root = repo(BEFORE);
+        write_to(&root, "n.txt", "// WHY: reason\n// more\ncode\n");
+
+        stage_file(root.clone(), "n.txt".into()).expect("stage");
+
+        assert_eq!(sh(&root, &["show", ":n.txt"]), "code\n");
+        assert_eq!(porcelain(&root), "AM n.txt");
+    }
+
+    #[test]
+    fn a_new_file_of_nothing_but_why_is_staged_empty() {
+        let root = repo(BEFORE);
+        write_to(&root, "n.txt", "// WHY: reason\n");
+
+        stage_file(root.clone(), "n.txt".into()).expect("stage");
+
+        assert_eq!(sh(&root, &["show", ":n.txt"]), "");
+    }
+
+    #[test]
+    fn a_renamed_file_is_staged_without_its_why_lines() {
+        let root = repo(BEFORE);
+        sh(&root, &["mv", "f.txt", "g.txt"]);
+        write_to(&root, "g.txt", AFTER);
+
+        stage_file(root.clone(), "g.txt".into()).expect("stage");
+
+        assert_eq!(sh(&root, &["show", ":g.txt"]), WITHOUT_WHY);
+        let e = entry(&root, "g.txt");
+        assert_eq!(e.orig_path.as_deref(), Some("f.txt"));
+        assert_eq!(e.staged_state, "all");
+    }
+
+    #[test]
+    fn a_file_staged_apart_from_why_reads_as_fully_staged_and_can_be_unstaged() {
+        let root = repo(BEFORE);
+        write(&root, AFTER);
+        stage_file(root.clone(), "f.txt".into()).expect("stage");
+
+        let e = entry(&root, "f.txt");
+        assert_eq!(e.staged_state, "all");
+        assert!(!e.why_only);
+
+        unstage_file(root.clone(), "f.txt".into(), None).expect("unstage");
+        assert_eq!(index_contents(&root), BEFORE);
+        assert_eq!(worktree(&root), AFTER);
+    }
+
+    #[test]
+    fn a_file_with_real_changes_left_is_not_fully_staged() {
+        let root = repo(BEFORE);
+        write(&root, AFTER);
+        let d = diff_of(&root);
+        let h = handles(&d, &["code"], false);
+        set_lines_staged(root.clone(), "f.txt".into(), h, true, d.hash).expect("stage");
+        write(&root, "one\n// WHY: the reason\n// carries on\ncode\ntwo\nmore\n");
+
+        assert_eq!(entry(&root, "f.txt").staged_state, "partial");
+    }
+
+    #[test]
+    fn only_a_file_of_nothing_but_why_is_why_only() {
+        let root = repo(BEFORE);
+        write(&root, ONLY_WHY);
+        write_to(&root, "plain.txt", "plain\n");
+        sh(&root, &["add", "plain.txt"]);
+        sh(&root, &["commit", "--quiet", "-m", "plain"]);
+        write_to(&root, "plain.txt", "changed\n");
+
+        let e = entry(&root, "f.txt");
+        assert!(e.why_only);
+        assert_eq!(e.staged_state, "none");
+        assert!(!entry(&root, "plain.txt").why_only);
+    }
+
+    #[test]
+    fn why_left_behind_by_a_commit_makes_the_file_why_only() {
+        let root = repo(BEFORE);
+        write(&root, AFTER);
+        stage_file(root.clone(), "f.txt".into()).expect("stage");
+
+        commit(root.clone(), "feature".into(), "".into()).expect("commit");
+
+        assert_eq!(sh(&root, &["show", "HEAD:f.txt"]), WITHOUT_WHY);
+        assert_eq!(worktree(&root), AFTER);
+        assert!(entry(&root, "f.txt").why_only);
+    }
+
+    #[test]
+    fn why_that_reached_the_index_some_other_way_can_be_unstaged() {
+        let root = repo(BEFORE);
+        write(&root, ONLY_WHY);
+        sh(&root, &["add", "f.txt"]);
+
+        let d = diff_of(&root);
+        let r = d.rows.iter().find(|r| r.why).expect("why row");
+        assert!(r.selectable && r.staged);
+
+        let h = handles(&d, &["// WHY: the reason"], true);
+        set_lines_staged(root.clone(), "f.txt".into(), h, false, d.hash).expect("unstage");
+        assert_eq!(index_contents(&root), BEFORE);
+    }
+
+    #[test]
+    fn deleting_a_committed_why_can_be_staged() {
+        let root = repo(ONLY_WHY);
+        write(&root, BEFORE);
+
+        let d = diff_of(&root);
+        assert!(d.rows.iter().all(|r| !r.why));
+
+        stage_file(root.clone(), "f.txt".into()).expect("stage");
+        assert_eq!(index_contents(&root), BEFORE);
+        assert_eq!(porcelain(&root), "M  f.txt");
+    }
+}
+
 /// Dumps real backend output for the repo in `STAGE_OPEN` to `STAGE_FIXTURE`.
 /// Used to render the real UI outside the app shell while developing styles.
 /// Run with: `cargo test -- --ignored dump_ui_fixture`
@@ -637,7 +908,7 @@ fn dump_ui_fixture() {
     let root = std::env::var("STAGE_OPEN").expect("STAGE_OPEN");
     let out = std::env::var("STAGE_FIXTURE").expect("STAGE_FIXTURE");
 
-    let status = git::status(&root).expect("status");
+    let status = repo_status(root.clone()).expect("status");
     let mut diffs = serde_json::Map::new();
     for f in &status.files {
         if let Ok(d) = file_diff(

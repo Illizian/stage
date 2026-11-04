@@ -26,12 +26,36 @@ interface Drag {
 
 type Item =
   | { type: "row"; row: DiffRow }
-  | { type: "fold"; gap: number; count: number };
+  | { type: "fold"; gap: number; count: number }
+  | { type: "why"; note: WhyNote };
+
+interface WhyNote {
+  /** The comment as written, which outlasts a shift in line numbers. */
+  key: string;
+  idx: number;
+  last: number;
+  range: string;
+  indent: number;
+  lines: string[];
+  /** How wide its prose can run. */
+  max: number;
+  /** Nothing else changes in its hunk, so it can be collapsed. */
+  dangling: boolean;
+  open: boolean;
+  height: number;
+}
 
 /** Row heights, fixed by `.dl` and `.dl.fold` in styles.css. */
 const ROW_H = 20;
 // A fold's rules above and below sit inside its 22px, under `border-box`.
 const FOLD_H = 22;
+/** A WHY note's padding and headline, and each wrapped line, from `.why-body`. */
+const WHY_CHROME_H = 5 + 18 + 5;
+const WHY_LINE_H = 20;
+/** The longest a line of WHY prose runs. */
+const WHY_MEASURE = 720;
+/** The WHY headline and the gap after it, on a collapsed note's one line. */
+const WHY_LABEL = 38;
 
 /** Rows rendered past each edge of the pane, so a fast flick stays covered. */
 const OVERSCAN = 12;
@@ -41,6 +65,13 @@ const OVERSCAN = 12;
  * the two line-number columns, the +/- sign, and the padding after the text.
  */
 const GUTTERS = 18 + 22 + 46 + 46 + 14 + 28;
+
+/** Fonts a WHY note is set in, matching `.diffbody` and `.why-text`. */
+const CODE_FONT = '12px ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace';
+const PROSE_FONT = "12.5px -apple-system, system-ui, sans-serif";
+
+const WHY_START = /^\s*(?:\/\/|#|--) WHY:\s*/;
+const WHY_LEADER = /^\s*(?:\/\/|#|--) ?/;
 
 // Memoised because the pane re-renders for anything that changes in App —
 // typing a commit message, most of all — and none of that touches the diff.
@@ -58,6 +89,8 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
   const { tokensFor } = useSyntax(diff);
   // Folded runs the user has chosen to reveal.
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // Dangling WHY comments the user has chosen to read, by their text.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
   // An in-progress drag. `target` is the state every line in the range is
   // being moved to, taken from the line the drag started on — so one drag
   // only ever stages or only ever unstages, never both.
@@ -139,14 +172,39 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
     return m;
   }, [rows]);
 
+  // Which items are on screen. Scrolling only ever changes this, so a scroll
+  // re-renders the dozens of rows in view rather than the whole file.
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  const noteRef = useRef<HTMLDivElement | null>(null);
+  const [port, setPort] = useState({ top: 0, height: 0, width: 0 });
+
   // The rows to show, with each folded run of unchanged lines standing in for
-  // the lines it hides. `offsets[i]` is where item `i` starts down the pane,
-  // which is what makes the window below computable without measuring rows.
+  // the lines it hides, and each unstaged WHY comment drawn as one note.
+  // `offsets[i]` is where item `i` starts down the pane, which is what makes
+  // the window below computable without measuring rows.
   const { items, offsets, height } = useMemo(() => {
     const out: Item[] = [];
+    const dangling = danglingRows(rows);
     let i = 0;
     while (i < rows.length) {
       const r = rows[i];
+      if (r.why && !r.staged) {
+        let j = i + 1;
+        while (
+          j < rows.length &&
+          rows[j].why &&
+          !rows[j].staged &&
+          !WHY_START.test(rows[j].text)
+        ) {
+          j += 1;
+        }
+        out.push({
+          type: "why",
+          note: whyNote(rows.slice(i, j), port.width, dangling[i], opened),
+        });
+        i = j;
+        continue;
+      }
       if (r.visible || expanded.has(r.gap)) {
         out.push({ type: "row", row: r });
         i += 1;
@@ -161,10 +219,17 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
 
     const offs = new Float64Array(out.length + 1);
     for (let k = 0; k < out.length; k++) {
-      offs[k + 1] = offs[k] + (out[k].type === "fold" ? FOLD_H : ROW_H);
+      const item = out[k];
+      offs[k + 1] =
+        offs[k] +
+        (item.type === "fold"
+          ? FOLD_H
+          : item.type === "why"
+            ? item.note.height
+            : ROW_H);
     }
     return { items: out, offsets: offs, height: offs[out.length] };
-  }, [rows, expanded]);
+  }, [rows, expanded, opened, port.width]);
 
   // How wide the longest line in the file is, in character cells. Only part of
   // the file is in the DOM at any moment, so the pane's horizontal extent has
@@ -173,25 +238,15 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
   const width = useMemo(() => {
     let max = 0;
     for (const r of rows) {
-      let cols = 0;
-      for (const ch of r.text) {
-        // Tabs run to the next stop; `tab-size: 4` sets where those are.
-        if (ch === "\t") cols += 4 - (cols % 4);
-        // Anything past the CJK block is wide enough to count as two cells.
-        else cols += ch.codePointAt(0)! > 0x2e7f ? 2 : 1;
-      }
+      // Notes wrap to the pane, so they never set its width.
+      if (r.why && !r.staged) continue;
+      let cols = cellsIn(r.text);
       // The "no newline at end of file" note rides along after the text.
       if (r.nonl) cols += 30;
       if (cols > max) max = cols;
     }
     return `calc(${GUTTERS}px + ${max}ch)`;
   }, [rows]);
-
-  // Which items are on screen. Scrolling only ever changes this, so a scroll
-  // re-renders the dozens of rows in view rather than the whole file.
-  const paneRef = useRef<HTMLDivElement | null>(null);
-  const noteRef = useRef<HTMLDivElement | null>(null);
-  const [port, setPort] = useState({ top: 0, height: 0 });
 
   useLayoutEffect(() => {
     const el = paneRef.current;
@@ -201,9 +256,9 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
       // it has to come off the scroll position before it indexes into them.
       const top = el.scrollTop - (noteRef.current?.offsetHeight ?? 0);
       setPort((p) =>
-        p.top === top && p.height === el.clientHeight
+        p.top === top && p.height === el.clientHeight && p.width === el.clientWidth
           ? p
-          : { top, height: el.clientHeight },
+          : { top, height: el.clientHeight, width: el.clientWidth },
       );
     };
     // flushSync, so the rows for the new scroll position are in the DOM before
@@ -273,6 +328,63 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
           );
         }
 
+        if (item.type === "why") {
+          const note = item.note;
+          const toggle = () =>
+            setOpened((p) => {
+              const next = new Set(p);
+              if (!next.delete(note.key)) next.add(note.key);
+              return next;
+            });
+          const toggleOpen = note.dangling && note.open ? toggle : undefined;
+          return (
+            <div
+              className={`dl why${note.open ? "" : " why-closed"}`}
+              key={`why-${note.idx}`}
+              style={{ height: note.height }}
+              title="WHY comment \u2014 never staged"
+              onClick={note.open ? undefined : toggle}
+              onMouseEnter={() => {
+                const d = dragRef.current;
+                if (d) setDragNow({ ...d, to: note.last });
+              }}
+            >
+              <span className="hgut" />
+              <span className="gut" />
+              <span className="no why-range">{note.range}</span>
+              {note.dangling ? (
+                <span className="sign why-chev" onClick={toggleOpen}>
+                  <Chevron open={note.open} />
+                </span>
+              ) : (
+                <span className="sign" />
+              )}
+              <div className="why-body" style={{ paddingLeft: `${note.indent}ch` }}>
+                <div
+                  className={`why-head${toggleOpen ? " why-toggle" : ""}`}
+                  onClick={toggleOpen}
+                >
+                  WHY
+                </div>
+                {note.open ? (
+                  <div className="why-text">
+                    {note.lines.map((line, i) => (
+                      <div key={i}>{line}</div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    className="why-first"
+                    style={{ maxWidth: Math.max(0, note.max - WHY_LABEL) }}
+                  >
+                    {note.lines.filter(Boolean).join(" ")}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
         const r = item.row;
 
         if (r.kind === "context") {
@@ -308,7 +420,7 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
 
         return (
           <div
-            className={`dl ${r.kind}${staged ? " staged" : ""}`}
+            className={`dl ${r.kind}${r.why ? " why" : ""}${staged ? " staged" : ""}`}
             key={r.idx}
             onMouseEnter={() => {
               const d = dragRef.current;
@@ -334,7 +446,7 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
             </span>
 
             <span className="gut" onMouseDown={startDrag}>
-              {interactive && (
+              {interactive && r.selectable && (
                 <span className={`lbox${staged ? " on" : ""}`}>
                   <Tick />
                 </span>
@@ -344,7 +456,8 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
             <span className="no" onMouseDown={startDrag}>{r.oldLine ?? ""}</span>
             <span className="no" onMouseDown={startDrag}>{r.newLine ?? ""}</span>
             <span className="sign">{r.kind === "add" ? "+" : "-"}</span>
-            <Code row={r} tokens={tokensFor(r)} />
+            {/* Plain text, so the colour set in styles.css is what shows. */}
+            <Code row={r} tokens={r.why ? null : tokensFor(r)} />
           </div>
         );
       })}
@@ -355,6 +468,109 @@ function Diff({ diff, loading, onApply }: Props & { diff: FileDiff }) {
       />
     </div>
   );
+}
+
+/** How many character cells `text` takes up in the code font. */
+function cellsIn(text: string): number {
+  let cols = 0;
+  for (const ch of text) {
+    // Tabs run to the next stop; `tab-size: 4` sets where those are.
+    if (ch === "\t") cols += 4 - (cols % 4);
+    // Anything past the CJK block is wide enough to count as two cells.
+    else cols += ch.codePointAt(0)! > 0x2e7f ? 2 : 1;
+  }
+  return cols;
+}
+
+const measure = document.createElement("canvas").getContext("2d")!;
+
+/**
+ * Turn one WHY comment's rows into a note. The prose is broken into lines here
+ * rather than left to the browser, so its height is known without measuring it.
+ */
+function whyNote(
+  rows: DiffRow[],
+  paneWidth: number,
+  dangling: boolean,
+  opened: Set<string>,
+): WhyNote {
+  const head = rows[0];
+  const indent = cellsIn(/^\s*/.exec(head.text)![0]);
+
+  measure.font = CODE_FONT;
+  const room = paneWidth - GUTTERS - indent * measure.measureText("0").width;
+  const max = paneWidth ? Math.min(WHY_MEASURE, room) : WHY_MEASURE;
+
+  // A comment line with nothing after its leader is a paragraph break.
+  const paragraphs = [""];
+  for (const r of rows) {
+    const text = r.text.replace(WHY_START.test(r.text) ? WHY_START : WHY_LEADER, "").trim();
+    if (text) {
+      const at = paragraphs.length - 1;
+      paragraphs[at] = paragraphs[at] ? `${paragraphs[at]} ${text}` : text;
+    } else {
+      paragraphs.push("");
+    }
+  }
+
+  measure.font = PROSE_FONT;
+  const lines: string[] = [];
+  paragraphs.forEach((paragraph, i) => {
+    if (i > 0) lines.push("");
+    let line = "";
+    for (const word of paragraph.split(/\s+/)) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && measure.measureText(next).width > max) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    }
+    lines.push(line);
+  });
+
+  const from = head.newLine;
+  const to = rows[rows.length - 1].newLine;
+  const key = rows.map((r) => r.text).join("\n");
+  const open = !dangling || opened.has(key);
+  return {
+    key,
+    idx: head.idx,
+    last: rows[rows.length - 1].idx,
+    range: from === to ? `${from}` : `${from}\u2013${to}`,
+    indent,
+    lines,
+    max,
+    dangling,
+    open,
+    height: open ? WHY_CHROME_H + lines.length * WHY_LINE_H : ROW_H,
+  };
+}
+
+/**
+ * Which rows sit in a hunk with no change but unstaged WHY comments. Staged
+ * lines count as changes, so a note only closes once its code is committed or
+ * discarded, and never under the cursor while lines are being ticked.
+ */
+function danglingRows(rows: DiffRow[]): boolean[] {
+  const out = new Array<boolean>(rows.length).fill(false);
+  let i = 0;
+  while (i < rows.length) {
+    if (!rows[i].visible) {
+      i += 1;
+      continue;
+    }
+    let j = i;
+    let changed = false;
+    while (j < rows.length && rows[j].visible) {
+      if (rows[j].kind !== "context" && (!rows[j].why || rows[j].staged)) changed = true;
+      j += 1;
+    }
+    out.fill(!changed, i, j);
+    i = j;
+  }
+  return out;
 }
 
 /** Index of the item that `y` pixels down the pane falls in. */
@@ -384,6 +600,14 @@ const Code = memo(function Code({ row, tokens }: { row: DiffRow; tokens: Tok[] |
     </span>
   );
 });
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden="true">
+      <path d={open ? "M2.5 4.5 6 8l3.5-3.5" : "M4.5 2.5 8 6 4.5 9.5"} fill="none" strokeWidth="1.8" />
+    </svg>
+  );
+}
 
 function Tick() {
   return (
