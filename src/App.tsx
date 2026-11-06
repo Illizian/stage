@@ -226,6 +226,20 @@ export default function App() {
     [act, repo],
   );
 
+  /** A folder's checkbox: every file in it one way, skipping those already there. */
+  const toggleFiles = useCallback(
+    (fs: FileEntry[], stage: boolean) =>
+      act(async () => {
+        for (const f of fs) {
+          if (f.whyOnly) continue;
+          if (stage && f.stagedState !== "all") await api.stageFile(repo!.root, f.path);
+          if (!stage && f.stagedState !== "none")
+            await api.unstageFile(repo!.root, f.path, f.origPath);
+        }
+      }),
+    [act, repo],
+  );
+
   const setLinesStaged = useCallback(
     (positions: number[], staged: boolean) => {
       if (!repo || !entry || !diff || busy) return;
@@ -319,6 +333,7 @@ export default function App() {
               selected={selPath}
               onSelect={setSelPath}
               onToggle={toggleFile}
+              onToggleFiles={toggleFiles}
               onToggleAll={(stageEverything) =>
                 act(() =>
                   stageEverything ? api.stageAll(repo.root) : api.unstageAll(repo.root),
