@@ -17,7 +17,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
-  <img alt="Stage showing src/parser.ts with 13 of 20 changed lines staged — staged lines ticked and blue, unstaged lines green, all in one view" src="docs/screenshots/hero-light.png">
+  <img alt="Stage showing src/parser.ts with 10 of 20 changed lines staged — staged lines ticked and blue, unstaged lines green, and a WHY note, all in one view" src="docs/screenshots/hero-light.png">
 </picture>
 
 ---
@@ -29,10 +29,10 @@ The point of that: when you stage a single line here, `git status` in your
 terminal reports the file as both staged and unstaged (`MM`), exactly as if you
 had used `git add -p`.
 
-```console
-$ git status --porcelain
-MM src/parser.ts
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/terminal-dark.png">
+  <img alt="Stage with README.md staged and src/parser.ts partly staged, beside a terminal where git status lists src/parser.ts under both changes to be committed and changes not staged" src="docs/screenshots/terminal-light.png">
+</picture>
 
 ## Install
 
@@ -42,30 +42,44 @@ Intel, signed and notarised.
 
 ## What it does
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/demo-dark.gif">
+  <img alt="Dragging down the margin to stage three lines, ticking a hunk and a single line, staging README.md from the list, then writing a summary and committing" src="docs/screenshots/demo-light.gif">
+</picture>
+
 |  | |
 | --- | --- |
-| **Line-level staging** | Click a changed line, or drag across a range. Staged lines stay where they are and turn blue with a tick — they do not vanish from the view. |
-| **Hunk and whole-file staging** | Toggle a file from the list, or everything at once from the header checkbox. |
-| **One honest diff** | HEAD → worktree in a single pane, with a per-line checkbox saying whether that change is *currently in the index*. No separate staged and unstaged panels to reconcile, and a running `13 of 20 changed lines staged` count in the header. |
+| **Line-level staging** | Click a line's checkbox or number in the margin, or drag down the margin across a range. Staged lines stay where they are and turn blue with a tick — they do not vanish from the view. The code itself is left free to select and copy. |
+| **Hunk, file and folder staging** | Each run of changes has its own checkbox. Toggle a file or folder from the list, or everything at once from the header checkbox. |
+| **One honest diff** | HEAD → worktree in a single pane, with a per-line checkbox saying whether that change is *currently in the index*. No separate staged and unstaged panels to reconcile, and a running `10 of 20 changed lines staged` count in the header. |
 | **WHY comments** | Added `// WHY:` comments are shown as notes for the reviewer and are never staged, so they stay out of commits and in your working tree. |
-| **Folded context** | Runs of untouched lines collapse into a `41 unchanged lines` bar you can click to expand. |
+| **Folded context** | Runs of untouched lines collapse into a `14 unchanged lines` bar you can click to expand. |
 | **Syntax highlighting** | Via [Shiki](https://shiki.style) — TextMate grammars, around 200 languages, and the same themes GitHub uses. |
+| **File list or tree** | A flat list that turns into a folder tree once there are 15 or more changed files across 4 or more folders. The button in its header switches by hand. Drag the sidebar's edge to resize it. |
 | **Commit** | Summary and description, `⌘↵` to commit. Shows the last commit and how long ago it landed. |
 | **Repository picker** | Folder picker with recents, branch name, and ahead/behind counts. |
+| **Stays current** | Re-reads git whenever the window regains focus, so a commit or checkout made in the terminal shows up on the way back. |
 | **Light and dark** | Follows the system appearance. |
 
-Keyboard: `⌘O` open a repository, `⌘R` refresh, `⌘↵` commit.
+Keyboard: `⌘O` open a repository, `⌘R` refresh, `⌘↵` commit. Click the path
+above the diff to copy it.
 
 That is the whole feature set. No push, pull, fetch, branching, history or
 merge tooling — use the command line for those.
 
 ### Staging a line
 
-<img src="docs/screenshots/line-staging.png" alt="Staged lines marked with a blue tick alongside unstaged lines in the same hunk" width="760">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/line-staging-dark.png">
+  <img src="docs/screenshots/line-staging-light.png" alt="A hunk staged from its checkbox, every line marked with a blue tick, between unchanged lines" width="760">
+</picture>
 
 Blue and ticked means that line is in the index right now. Everything else in
-the hunk is still only in your working tree. The file shows up as `MM` in
+the file is still only in your working tree. The file shows up as `MM` in
 `git status`, and `git diff --cached` shows exactly the lines you ticked.
+
+Only the margin stages — the checkboxes and line numbers. Clicking or dragging
+in the code selects text as it would anywhere else.
 
 ### WHY comments
 
@@ -76,6 +90,11 @@ style. The diff draws those lines as one note, its prose rewrapped to the pane
 under a WHY headline, with the file's line range in the margin. A note has no
 checkbox, and staging a file or everything runs `git add` and then takes its
 lines straight back out of the index.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/why-dark.png">
+  <img src="docs/screenshots/why-light.png" alt="A two-line WHY comment drawn as a note between unstaged additions, with its line range in the margin and no checkbox" width="760">
+</picture>
 
 A note with no other change in its hunk, staged or not, is dangling: its code
 has been committed or discarded. It folds to one row showing its first words,
@@ -94,7 +113,10 @@ way shows as its literal lines, tinted, and can still be unticked, and deleting 
 The button names the branch it will commit to, and stays disabled until there
 is both a summary and something staged. `⌘↵` from either field does the same.
 
-<img src="docs/screenshots/commit.png" alt="The commit box: summary, description, and a commit button naming the branch" width="328">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/commit-dark.png">
+  <img src="docs/screenshots/commit-light.png" alt="The commit box: summary, description, and a commit button naming the branch" width="328">
+</picture>
 
 ## How the view works
 
@@ -126,7 +148,8 @@ which touches only the index. Because both alignments are full-context, every
 generated patch is a single hunk starting at line 1, with no offset arithmetic.
 
 Unchanged lines more than three away from any change are folded into a
-"N unchanged lines" bar you can click to expand.
+"N unchanged lines" bar you can click to expand. Only the rows on screen are
+rendered, so a long diff scrolls as easily as a short one.
 
 Both whole files are reconstructed from the rows and tokenised as complete
 documents rather than line by line, so a line sitting inside a multi-line
@@ -199,16 +222,21 @@ src-tauri/src/git.rs      process wrapper, status parsing, whole-file ops
 src-tauri/src/unified.rs  three-way alignment, folding, patch synthesis
 src-tauri/src/lib.rs      Tauri commands + end-to-end tests
 src/App.tsx               app state and layout
+src/api.ts                typed wrappers around the Tauri commands
 src/syntax.ts             language detection and Shiki tokenising
-src/components/           TopBar, FileList, DiffView, CommitBox
+src/tree.ts               folder tree for the file list
+src/focus.ts              refresh when the window regains focus
+src/components/           TopBar, FileList, DiffView, CommitBox, SidebarResizer
 src/styles.css            light and dark palettes
 ```
 
 ## Releasing
 
-Push a `v*` tag; a GitHub Actions workflow builds the universal app, signs and
-notarises it, and attaches it to a draft release. See
-[docs/RELEASING.md](docs/RELEASING.md).
+[Release Please](https://github.com/googleapis/release-please) keeps a release
+PR open on `main`, bumping the version and changelog from the conventional
+commits since the last release. Merging it tags the release, and a GitHub
+Actions workflow builds the universal app, signs and notarises it, and attaches
+it to a draft release. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Cross-platform
 
