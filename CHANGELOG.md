@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/Illizian/stage/compare/v0.5.0...v0.6.0) (2026-11-09)
+
+
+### Features
+
+* new logo for the app icon, welcome screen and README ([a34e82c](https://github.com/Illizian/stage/commit/a34e82cfdf4a112343f950a133897b4b2cb6e4e0))
+
 ## [0.5.0](https://github.com/Illizian/stage/compare/v0.4.0...v0.5.0) (2026-11-06)
 
 
