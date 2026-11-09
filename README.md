@@ -1,8 +1,9 @@
 <div align="center">
 
-<img src="docs/screenshots/icon.png" width="112" alt="Stage">
-
-# Stage
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo/stage-logo-dark.svg">
+  <img src="docs/logo/stage-logo-light.svg" width="260" alt="Stage">
+</picture>
 
 **A small desktop git GUI that drives your own `git`.**
 

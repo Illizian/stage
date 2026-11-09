@@ -14,6 +14,7 @@ import { DiffView } from "./components/DiffView";
 import { CommitBox } from "./components/CommitBox";
 import { SidebarResizer } from "./components/SidebarResizer";
 import { useWindowFocus } from "./focus";
+import logo from "./assets/stage-icon.svg";
 
 const RECENTS_KEY = "stage.recents";
 const LAST_KEY = "stage.last";
@@ -316,6 +317,7 @@ export default function App() {
 
       {!repo ? (
         <div className="welcome">
+          <img className="welcome-logo" src={logo} alt="" width={88} height={88} />
           <h1>Stage</h1>
           <p>
             A small git GUI. Every action runs your own <code>git</code> — staging

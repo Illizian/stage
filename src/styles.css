@@ -1040,6 +1040,10 @@ button.dh-path:hover {
   text-align: center;
 }
 
+.welcome-logo {
+  margin-bottom: 4px;
+}
+
 .welcome h1 {
   margin: 0;
   font-size: 26px;
